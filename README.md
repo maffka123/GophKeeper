@@ -4,6 +4,13 @@ Service store your data.
 
 Has two components: client ans server.
 
+### Table of Contents
+
+1. [Client](#client)
+    1. [Build client](#build-client)
+2. [Server](#server)
+3. [Requests for tests](#requests-for-tests)
+
 ## Client
 
 API with the followind endpoints:

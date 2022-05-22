@@ -22,7 +22,7 @@ func TestPGDB_buildQuery(t *testing.T) {
 
 		{name: "with meta and login",
 			data: &rpc.Data{Data: &rpc.KeepData{AuthData: &rpc.AuthData{Login: "name"}}, Metadata: "some data"},
-			want: `SELECT * FROM secrets WHERE user_id=0 AND metadata LIKE '%some data%' AND data #> '{AuthData}' @? '$.Login ? (@ == "name")'`,
+			want: `SELECT * FROM secrets WHERE user_id=0 AND metadata LIKE '%some data%' AND data #> '{AuthData}' @? '$.login ? (@ == "name")'`,
 		},
 	}
 	for _, tt := range tests {
