@@ -1,0 +1,32 @@
+syntax = "proto3";
+package proto;
+option go_package = ".";
+
+message Data {
+    int64 ID = 1;
+    int64 UserID = 2;
+    KeepData Data = 3;
+	string Metadata = 4;
+}
+
+message KeepData {
+    AuthData AuthData = 1;
+string Text = 2;
+bytes Binary = 3;
+BankCard BankCard = 4;
+
+}
+
+message AuthData{
+    string login = 1;
+    string password = 2;
+}
+
+message BankCard {
+    string HolderName = 1;
+int64 ThreeDigit = 2;
+int64 CardNumber = 3;
+string Expiry = 4;
+string BankName = 5;
+string Address = 6;
+}
