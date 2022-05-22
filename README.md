@@ -64,6 +64,26 @@ API with the followind endpoints:
 
     response: full data entry/entries that were deleted
 
+### Build client
+
+```bash
+GOOS=darwin 
+GOARCH=amd64
+go build -ldflags "-X 'main.BuildCommit=$(git rev-list -1 HEAD)' -X 'main.BuildDate=$(date)' -X 'main.Version=1.0'" -o client'-'$GOOS'-'$GOARCH
+```
+
+```bash
+GOOS=windows 
+GOARCH=amd64
+go build -ldflags "-X 'main.BuildCommit=$(git rev-list -1 HEAD)' -X 'main.BuildDate=$(date)' -X 'main.Version=1.0'" -o client'-'$GOOS'-'$GOARCH'.exe'
+```
+
+```bash
+GOOS=linux 
+GOARCH=amd64
+go build -ldflags "-X 'main.BuildCommit=$(git rev-list -1 HEAD)' -X 'main.BuildDate=$(date)' -X 'main.Version=1.0'" -o client'-'$GOOS'-'$GOARCH
+```
+
 ## Server
 
 It is a gRPC server that has the same endpoints as above

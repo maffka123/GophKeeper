@@ -16,7 +16,14 @@ import (
 	"syscall"
 )
 
+var (
+	Version     string = "N/A"
+	BuildDate   string = "N/A"
+	BuildCommit string = "N/A"
+)
+
 func main() {
+	fmt.Printf("Build version: %s\nBuild date: %s\nBuild commit: %s\n", Version, BuildDate, BuildCommit)
 	fmt.Print("starting...")
 	cfg, err := config.InitConfig()
 	if err != nil {
