@@ -18,14 +18,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// secretService struct for grpc service
 type secretService struct {
-	// Need for implementation interface pb.UserServiceServer
 	pb.UnimplementedGophKeeperServer
 	logger *zap.Logger
 	db     storage.StoregeInterface
 	token  *jwtauth.JWTAuth
 }
 
+// New creates new instance of grpc service
 func New(logger *zap.Logger, db storage.StoregeInterface, secret string) *secretService {
 	return &secretService{
 		logger: logger,
@@ -34,6 +35,7 @@ func New(logger *zap.Logger, db storage.StoregeInterface, secret string) *secret
 	}
 }
 
+// Register registers new user
 func (s *secretService) Register(ctx context.Context, request *pb.RegisterRequest) (*pb.RegisterResp, error) {
 	exists, err := s.db.CreateNewUser(ctx, request.User)
 	if exists == -1 {
@@ -48,6 +50,7 @@ func (s *secretService) Register(ctx context.Context, request *pb.RegisterReques
 	return &pb.RegisterResp{Message: "Successfully created user", Exists: 0, Token: tokenString}, nil
 }
 
+// Login checks if given password is correct and issues authorisation token
 func (s *secretService) Login(ctx context.Context, request *pb.LoginRequest) (*pb.LoginResp, error) {
 	pass, err := s.db.SelectPass(ctx, request.User)
 	if err != nil {
@@ -66,6 +69,7 @@ func (s *secretService) Login(ctx context.Context, request *pb.LoginRequest) (*p
 	return &pb.LoginResp{Message: "Logged in successfully", Token: tokenString}, nil
 }
 
+// Insert inserts data to postgres from authorized user
 func (s *secretService) Insert(ctx context.Context, request *pb.InsertRequest) (*pb.InsertResp, error) {
 	currUser, err := app.UserIDFromContext(ctx)
 	if err != nil {
@@ -86,6 +90,7 @@ func (s *secretService) Insert(ctx context.Context, request *pb.InsertRequest) (
 	return &pb.InsertResp{Id: *id}, nil
 }
 
+// GetData gets data for athorized user
 func (s *secretService) GetData(ctx context.Context, request *pb.GetDataRequest) (*pb.GetDataResp, error) {
 	currUser, err := app.UserIDFromContext(ctx)
 	if err != nil {
@@ -106,6 +111,7 @@ func (s *secretService) GetData(ctx context.Context, request *pb.GetDataRequest)
 	return &pb.GetDataResp{Data: data}, nil
 }
 
+// Delete deletes data for athorized user
 func (s *secretService) Delete(ctx context.Context, request *pb.DeleteRequest) (*pb.DeleteResp, error) {
 	currUser, err := app.UserIDFromContext(ctx)
 	if err != nil {
@@ -133,6 +139,7 @@ func comparePass(expected string, actual string) bool {
 	return subtle.ConstantTimeCompare([]byte(expected), []byte(npb)) == 1
 }
 
+// JWTAuthFunction generated func of type jwtAuth to use as a middleware for grpc server
 func (s *secretService) JWTAuthFunction() func(ctx context.Context) (context.Context, error) {
 	return func(ctx context.Context) (context.Context, error) {
 

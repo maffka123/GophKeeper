@@ -13,12 +13,14 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// Handler struct for api handler
 type Handler struct {
 	logger *zap.Logger
 	ctx    context.Context
 	c      pb.GophKeeperClient
 }
 
+// NewHandler returns new initilized handler
 func NewHandler(ctx context.Context, logger *zap.Logger, c pb.GophKeeperClient) Handler {
 	return Handler{
 		logger: logger,

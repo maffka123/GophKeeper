@@ -18,6 +18,7 @@ import (
 	"time"
 )
 
+// PGinterface interface of postgres data sources
 type PGinterface interface {
 	Begin(context.Context) (pgx.Tx, error)
 	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
@@ -26,6 +27,7 @@ type PGinterface interface {
 	Close()
 }
 
+// StoregeInterface interface for storage
 type StoregeInterface interface {
 	CreateNewUser(context.Context, *rpc.User) (int, error)
 	SelectPass(context.Context, *rpc.User) (*string, error)
@@ -34,6 +36,7 @@ type StoregeInterface interface {
 	DeleteData(context.Context, *rpc.Data) ([]*rpc.Data, error)
 }
 
+// PGDB type for postgres
 type PGDB struct {
 	path string
 	Conn PGinterface
