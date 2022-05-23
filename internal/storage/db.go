@@ -5,11 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/docker/distribution/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	rpc "github.com/maffka123/GophKeeper/api/proto"
-	"github.com/maffka123/GophKeeper/internal/server/config"
 	"go.uber.org/zap"
 	//"google.golang.org/protobuf/encoding/protojson"
 	"io/ioutil"
@@ -29,11 +29,13 @@ type PGinterface interface {
 
 // StoregeInterface interface for storage
 type StoregeInterface interface {
-	CreateNewUser(context.Context, *rpc.User) (int, error)
-	SelectPass(context.Context, *rpc.User) (*string, error)
-	InsertData(context.Context, *rpc.Data) (*int64, error)
+	CreateNewUser(context.Context, *rpc.User) (int64, error)
+	SelectPass(context.Context, *rpc.User) (*string, *int64, error)
+	InsertData(context.Context, *rpc.Data, bool) (*uuid.UUID, error)
 	SearchData(context.Context, *rpc.Data) ([]*rpc.Data, error)
 	DeleteData(context.Context, *rpc.Data) ([]*rpc.Data, error)
+	InserDataForUser(context.Context, []*rpc.Data, int64) error
+	SelectAllDataForUser(context.Context, int64, string, bool) ([]*rpc.Data, error)
 }
 
 // PGDB type for postgres
@@ -44,12 +46,12 @@ type PGDB struct {
 }
 
 // InitDB initialized pg connection and creates tables
-func InitDB(ctx context.Context, cfg *config.Config, logger *zap.Logger, bp string) (*PGDB, error) {
+func InitDB(ctx context.Context, dbpath string, logger *zap.Logger, bp string) (*PGDB, error) {
 	db := PGDB{
-		path: cfg.DBpath,
+		path: dbpath,
 		log:  logger,
 	}
-	conn, err := pgxpool.Connect(ctx, cfg.DBpath)
+	conn, err := pgxpool.Connect(ctx, dbpath)
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to database: %v", err)
@@ -86,7 +88,7 @@ func InitDB(ctx context.Context, cfg *config.Config, logger *zap.Logger, bp stri
 }
 
 // CreateNewUser insertes new user, handles not unique users
-func (db *PGDB) CreateNewUser(ctx context.Context, user *rpc.User) (int, error) {
+func (db *PGDB) CreateNewUser(ctx context.Context, user *rpc.User) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	np := sha256.Sum256([]byte(user.Password))
@@ -100,11 +102,11 @@ func (db *PGDB) CreateNewUser(ctx context.Context, user *rpc.User) (int, error) 
 		return 0, fmt.Errorf("insert new user failed: %v", err)
 	}
 
-	return 1, nil
+	return user.ID, nil
 }
 
 // SelectPass gets hashed password for a particular user
-func (db *PGDB) SelectPass(ctx context.Context, user *rpc.User) (*string, error) {
+func (db *PGDB) SelectPass(ctx context.Context, user *rpc.User) (*string, *int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	var val string
@@ -112,18 +114,18 @@ func (db *PGDB) SelectPass(ctx context.Context, user *rpc.User) (*string, error)
 	err := row.Scan(&val, &user.ID)
 
 	if err != nil {
-		return nil, fmt.Errorf("select from users failed: %v", err)
+		return nil, nil, fmt.Errorf("select from users failed: %v", err)
 	}
 	// TODO user does not exist
-	return &val, nil
+	return &val, &user.ID, nil
 }
 
 // InsertData appends new data to existing secrets
-func (db *PGDB) InsertData(ctx context.Context, data *rpc.Data) (*int64, error) {
-	var id int64
-	err := db.Conn.QueryRow(ctx, `
-	INSERT INTO secrets (user_id, data, metadata) VALUES ($1,$2,$3) RETURNING id`,
-		data.UserID, data.Data, data.Metadata).Scan(&id)
+func (db *PGDB) InsertData(ctx context.Context, data *rpc.Data, synchronized bool) (*uuid.UUID, error) {
+	id := uuid.Generate()
+	_, err := db.Conn.Exec(ctx, `
+	INSERT INTO secrets (id, user_id, data, metadata,synchronized) VALUES ($1,$2,$3,$4,$5)`,
+		data.UserID, data.Data, data.Metadata, synchronized)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +161,61 @@ func (db *PGDB) SearchData(ctx context.Context, in *rpc.Data) ([]*rpc.Data, erro
 		out = append(out, &o)
 	}
 
+	return out, nil
+}
+
+func (db *PGDB) InserDataForUser(ctx context.Context, d []*rpc.Data, id int64) error {
+	tx, err := db.Conn.Begin(ctx)
+	if err != nil {
+		db.log.Error("starting connection failed: ", zap.Error(err))
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Prepare(ctx, "batch insert data", `INSERT INTO secrets (id, user_id, data, metadata)
+													VALUES($1,$2,$3,$4);`) // TODO: ON CONFLICT...
+	if err != nil {
+		db.log.Error("prep transaction failed: ", zap.Error(err))
+		return err
+	}
+	for _, v := range d {
+
+		if _, err = tx.Exec(ctx, "batch insert data", v.ID, id, v.Data, v.Metadata); err != nil {
+			db.log.Error("Insert data failed: ", zap.Error(err))
+			return err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			db.log.Error("Commit failed: ", zap.Error(err))
+			return err
+		}
+
+	}
+	return nil
+}
+
+func (db *PGDB) SelectAllDataForUser(ctx context.Context, id int64, t string, synchronized bool) ([]*rpc.Data, error) {
+	var out []*rpc.Data
+
+	row, err := db.Conn.Query(context.Background(), `SELECT * FROM secrets where id=$1 AND change_date>$2
+	AND synchronized is $3`, id, t, synchronized)
+	if err != nil {
+		return nil, fmt.Errorf("select from secrets failed: %v", err)
+	}
+	defer row.Close()
+
+	for row.Next() {
+		var o rpc.Data
+		var g rpc.KeepData
+		err := row.Scan(&o.ID, &g, &o.Metadata)
+		o.Data = &g
+		if err != nil {
+			db.log.Error("select from secrets failed:", zap.Error(err))
+		}
+
+		if err != nil {
+			db.log.Error("unmarshar data from secrets failed:", zap.Error(err))
+		}
+		out = append(out, &o)
+	}
 	return out, nil
 }
 

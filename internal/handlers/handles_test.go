@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/docker/distribution/uuid"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -39,8 +40,9 @@ func TestHandler_HandlerPostRegister(t *testing.T) {
 	}
 	defer conn.Close()
 
+	db := newFakeDB()
 	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
+	r := KeeperRouter(context.Background(), logger, client, db)
 
 	type want struct {
 		statusCode int
@@ -93,7 +95,8 @@ func TestHandler_HandlerPostLogin(t *testing.T) {
 	defer conn.Close()
 
 	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
+	db := newFakeDB()
+	r := KeeperRouter(context.Background(), logger, client, db)
 	type want struct {
 		statusCode int
 		cookie     http.Cookie
@@ -155,7 +158,8 @@ func TestHandler_HandlerPostData(t *testing.T) {
 	defer conn.Close()
 
 	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
+	db := newFakeDB()
+	r := KeeperRouter(context.Background(), logger, client, db)
 	type want struct {
 		statusCode int
 	}
@@ -207,7 +211,8 @@ func TestHandler_HandlerGetOrders(t *testing.T) {
 	defer conn.Close()
 
 	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
+	db := newFakeDB()
+	r := KeeperRouter(context.Background(), logger, client, db)
 	type want struct {
 		statusCode int
 	}
@@ -269,7 +274,8 @@ func TestHandler_HandlerGetDelete(t *testing.T) {
 	defer conn.Close()
 
 	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
+	db := newFakeDB()
+	r := KeeperRouter(context.Background(), logger, client, db)
 	type want struct {
 		statusCode int
 	}
@@ -379,8 +385,8 @@ func (db *fakeDB) SelectPass(ctx context.Context, user *pb.User) (*string, error
 func (db *fakeDB) SelectUserForOrder(ctx context.Context, d *pb.Data) (int64, error) {
 	return db.selectUserForOrder, nil
 }
-func (db *fakeDB) InsertData(ctx context.Context, d *pb.Data) (*int64, error) {
-	i := int64(1)
+func (db *fakeDB) InsertData(ctx context.Context, d *pb.Data, synchronized bool) (*uuid.UUID, error) {
+	i := uuid.Generate()
 	return &i, nil
 }
 
