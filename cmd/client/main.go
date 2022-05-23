@@ -61,8 +61,8 @@ func main() {
 	defer conn.Close()
 
 	// initialize sync
-	var tokenChan chan string
-	var idChan chan int64
+	tokenChan := make(chan string)
+	idChan := make(chan int64)
 	syncTicker := time.NewTicker(cfg.SyncInterval)
 	go syncdb.InitSync(ctx, tokenChan, idChan, db, client, logger, syncTicker.C)
 

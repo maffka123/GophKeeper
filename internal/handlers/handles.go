@@ -150,7 +150,7 @@ func (h *Handler) HandlerPostData() http.HandlerFunc {
 		h.logger.Debug("order accepted: ", zap.String("login", fmt.Sprint(resp.Id)))
 		w.Header().Set("application-type", "text/plain")
 		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte(fmt.Sprintf(`{"status":"ok, "insert id": %d}`, resp.Id)))
+		w.Write([]byte(fmt.Sprintf(`{"status":"ok, "insert id": %s}`, resp.Id)))
 	}
 }
 

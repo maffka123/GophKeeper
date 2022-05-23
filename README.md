@@ -9,7 +9,8 @@ Has two components: client ans server.
 1. [Client](#client)
     1. [Build client](#build-client)
 2. [Server](#server)
-3. [Requests for tests](#requests-for-tests)
+3. [Server-Client Synchronization](#server-client-synchronization)
+4. [Requests for tests](#requests-for-tests)
 
 ## Client
 
@@ -94,6 +95,16 @@ go build -ldflags "-X 'main.BuildCommit=$(git rev-list -1 HEAD)' -X 'main.BuildD
 ## Server
 
 It is a gRPC server that has the same endpoints as above
+
+## Server-Client Synchronization
+
+At the moment registration/login available only if server is online.
+
+Data can be added also when server is offline:
+
+* Client tries to send data to server
+* If it fails it saves it offline with syncronized=false
+* There is a separate go routine that runs every 10s and first pulls the new data from the server, where user id corresponds to current user and time is bigger than last sync time, secondly the go routine checks if there are local rows with syncronized=false and sends them to the server
 
 ## Requests for tests
 

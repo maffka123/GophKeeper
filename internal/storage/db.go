@@ -194,9 +194,14 @@ func (db *PGDB) InserDataForUser(ctx context.Context, d []*rpc.Data, id int64) e
 
 func (db *PGDB) SelectAllDataForUser(ctx context.Context, id int64, t string, synchronized bool) ([]*rpc.Data, error) {
 	var out []*rpc.Data
-
-	row, err := db.Conn.Query(context.Background(), `SELECT * FROM secrets where id=$1 AND change_date>$2
-	AND synchronized is $3`, id, t, synchronized)
+	var query string
+	if synchronized {
+		query = fmt.Sprintf(`SELECT * FROM secrets where id=%d AND change_date>%s`, id, t)
+	} else {
+		query = fmt.Sprintf(`UPDATE secrets 
+    SET synchronized=true WHERE synchronized=false AND id=%d RETURNING *`, 1)
+	}
+	row, err := db.Conn.Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("select from secrets failed: %v", err)
 	}
