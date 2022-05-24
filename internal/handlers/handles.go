@@ -18,19 +18,21 @@ import (
 
 // Handler struct for api handler
 type Handler struct {
-	logger *zap.Logger
-	ctx    context.Context
-	c      pb.GophKeeperClient
-	db     storage.StoregeInterface
+	logger    *zap.Logger
+	ctx       context.Context
+	c         pb.GophKeeperClient
+	db        storage.StoregeInterface
+	syncStart bool
 }
 
 // NewHandler returns new initilized handler
 func NewHandler(ctx context.Context, logger *zap.Logger, c pb.GophKeeperClient, db storage.StoregeInterface) Handler {
 	return Handler{
-		logger: logger,
-		ctx:    ctx,
-		c:      c,
-		db:     db,
+		logger:    logger,
+		ctx:       ctx,
+		c:         c,
+		db:        db,
+		syncStart: false,
 	}
 }
 
@@ -104,8 +106,11 @@ func (h *Handler) HandlerPostLogin(tokenChan chan string, idChan chan int64) htt
 			Value: resp.Token,
 		})
 
-		tokenChan <- resp.Token
-		idChan <- resp.UserId
+		if !h.syncStart {
+			tokenChan <- resp.Token
+			idChan <- resp.UserId
+			h.syncStart = true
+		}
 
 		w.Header().Set("application-type", "text/plain")
 		w.WriteHeader(http.StatusOK)
@@ -138,29 +143,33 @@ func (h *Handler) HandlerPostData() http.HandlerFunc {
 				switch e.Code() {
 				case codes.Code(codes.Unavailable):
 					h.logger.Warn("server is not available saving data locally")
-					h.insertIfUnavailable(d)
+					resp, err = h.insertIfUnavailable(d)
+					if err != nil {
+						http.Error(w, fmt.Sprintf("500 - Insert to local db failed: %s", err), http.StatusInternalServerError)
+						return
+					}
 				}
 			} else {
 				h.logger.Debug(err.Error())
-				http.Error(w, fmt.Sprintf("500 - Internal error: %s", err), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("500 - Internal error: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}
 		}
 
-		h.logger.Debug("order accepted: ", zap.String("login", fmt.Sprint(resp.Id)))
+		h.logger.Debug("data accepted: ", zap.String("login", fmt.Sprint(resp.Id)))
 		w.Header().Set("application-type", "text/plain")
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte(fmt.Sprintf(`{"status":"ok, "insert id": %s}`, resp.Id)))
 	}
 }
 
-func (h *Handler) insertIfUnavailable(data pb.Data) (*string, error) {
+func (h *Handler) insertIfUnavailable(data pb.Data) (*pb.InsertResp, error) {
 	id, err := h.db.InsertData(h.ctx, &data, false)
 	if err != nil {
 		return nil, err
 	}
-	idstr := fmt.Sprint(id)
-	return &idstr, nil
+	resp := pb.InsertResp{Id: fmt.Sprint(id)}
+	return &resp, nil
 }
 
 // HandlerGetData gets data for current user for given search criteria
@@ -168,14 +177,14 @@ func (h *Handler) HandlerGetData() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("400 - Data json cannot be read: %s", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("400 - Data json cannot be read: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 		var d pb.Data
 		err = protojson.Unmarshal(body, &d)
 
 		if err != nil {
-			http.Error(w, fmt.Sprintf("400 - Data json cannot be decoded: %s", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("400 - Data json cannot be decoded: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
@@ -188,11 +197,15 @@ func (h *Handler) HandlerGetData() http.HandlerFunc {
 				switch e.Code() {
 				case codes.Code(codes.Unavailable):
 					h.logger.Warn("server is not available getting data from local base")
-					h.getDataIfUnavailable(d)
+					resp, err = h.getDataIfUnavailable(d)
+					if err != nil {
+						http.Error(w, fmt.Sprintf("500 - Select from local db failed: %s", err.Error()), http.StatusInternalServerError)
+						return
+					}
 				}
 			} else {
 				h.logger.Debug(err.Error())
-				http.Error(w, fmt.Sprintf("500 - Internal error: %s", err), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("500 - Internal error: %s", err.Error()), http.StatusInternalServerError)
 				return
 			}
 		}
@@ -200,7 +213,7 @@ func (h *Handler) HandlerGetData() http.HandlerFunc {
 		data, err := protojson.Marshal(resp)
 		if err != nil {
 			h.logger.Debug(err.Error())
-			http.Error(w, fmt.Sprintf("500 - could not convert data to json: %s", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("500 - could not convert data to json: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
@@ -211,13 +224,13 @@ func (h *Handler) HandlerGetData() http.HandlerFunc {
 	}
 }
 
-func (h *Handler) getDataIfUnavailable(data pb.Data) ([]*pb.Data, error) {
+func (h *Handler) getDataIfUnavailable(data pb.Data) (*pb.GetDataResp, error) {
 	d, err := h.db.SearchData(h.ctx, &data)
 	if err != nil {
 		return nil, err
 	}
 
-	return d, nil
+	return &pb.GetDataResp{Data: d}, nil
 }
 
 // HandlerGetDelete deletes for current user for given search criteria

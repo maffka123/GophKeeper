@@ -125,7 +125,7 @@ func (db *PGDB) InsertData(ctx context.Context, data *rpc.Data, synchronized boo
 	id := uuid.Generate()
 	_, err := db.Conn.Exec(ctx, `
 	INSERT INTO secrets (id, user_id, data, metadata,synchronized) VALUES ($1,$2,$3,$4,$5)`,
-		data.UserID, data.Data, data.Metadata, synchronized)
+		id, data.UserID, data.Data, data.Metadata, synchronized)
 	if err != nil {
 		return nil, err
 	}
@@ -195,11 +195,12 @@ func (db *PGDB) InserDataForUser(ctx context.Context, d []*rpc.Data, id int64) e
 func (db *PGDB) SelectAllDataForUser(ctx context.Context, id int64, t string, synchronized bool) ([]*rpc.Data, error) {
 	var out []*rpc.Data
 	var query string
+
 	if synchronized {
-		query = fmt.Sprintf(`SELECT * FROM secrets where id=%d AND change_date>%s`, id, t)
+		query = fmt.Sprintf(`SELECT id, user_id, data, metadata FROM secrets where user_id=%d AND change_date>'%s'`, id, t)
 	} else {
 		query = fmt.Sprintf(`UPDATE secrets 
-    SET synchronized=true WHERE synchronized=false AND id=%d RETURNING *`, 1)
+    SET synchronized=true WHERE synchronized=false AND user_id=%d RETURNING id, user_id, data, metadata`, id)
 	}
 	row, err := db.Conn.Query(context.Background(), query)
 	if err != nil {
@@ -210,7 +211,7 @@ func (db *PGDB) SelectAllDataForUser(ctx context.Context, id int64, t string, sy
 	for row.Next() {
 		var o rpc.Data
 		var g rpc.KeepData
-		err := row.Scan(&o.ID, &g, &o.Metadata)
+		err := row.Scan(&o.ID, &o.UserID, &g, &o.Metadata)
 		o.Data = &g
 		if err != nil {
 			db.log.Error("select from secrets failed:", zap.Error(err))

@@ -117,7 +117,7 @@ curl -d '{"login":"test1","password":"mypass"}' -H "Content-Type: application/js
 ```
 
 ```bash
-curl -v --cookie "jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyfQ.XUjieZQLFHd61t9ZjifbQ6c1BGB6ANYD1Xo-aog249U" -d '{"Data": {"BankCard":{"CardNumber": 123456789}}, "Metadata": "this is my card"}' -H "Content-Type: application/json" -X POST http://localhost:8081/api/user/insert
+curl -v --cookie "jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxfQ.uwbhqVZMHjeX9nvVpbw-AHXZ2YAfNToBR1IGjITmxo4" -d '{"Data": {"BankCard":{"CardNumber": 123456789}}, "Metadata": "this is my card"}' -H "Content-Type: application/json" -X POST http://localhost:8081/api/user/insert
 ```
 
 ```bash
