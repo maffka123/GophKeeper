@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = ".";
+
+import "data.proto";
+
+service GophKeeper {
+    rpc Register(RegisterRequest) returns (RegisterResp) {
+    }
+    rpc Login(LoginRequest) returns (LoginResp) {
+    }
+    rpc Insert(InsertRequest) returns (InsertResp) {
+    }
+    rpc GetData(GetDataRequest) returns (GetDataResp) {
+    }
+    rpc Delete(DeleteRequest) returns (DeleteResp) {
+    }
+    rpc GetAllDataForUser(GetAllDataForUserRequest) returns (GetAllDataForUserResp) {
+    }
+    rpc InsertSyncData(InsertSyncDataRequest) returns (InsertSyncDataResp) {
+    }
+  }
+
+  message User {
+    int64 ID = 1;
+    string login = 2;
+    string password = 3;
+  }
+  
+  message RegisterRequest {
+    User User = 1;
+  }
+  
+  message LoginRequest {
+    User User = 1;
+  }
+
+  message InsertRequest {
+    Data Data = 1;
+  }
+
+  message GetDataRequest {
+    Data Data = 1;
+  }
+
+  message DeleteRequest {
+    Data Data = 1;
+  }
+  
+  message RegisterResp {
+    string Message = 1;
+    int64 Exists = 2;
+    string Token = 3;
+  }
+
+  message LoginResp {
+    string Message = 1;
+    string Token = 2;
+    int64 UserId = 3;
+  }
+
+  message InsertResp {
+    string Id = 1;
+  }
+
+  message GetDataResp {
+    repeated Data Data = 1;
+  }
+
+  message DeleteResp {
+    repeated Data Data = 1;
+  }
+
+  message GetAllDataForUserRequest {
+int64 UserID = 1;
+string Time = 2;
+  }
+
+  message GetAllDataForUserResp {
+    repeated Data Data = 1;
+  }
+
+  message InsertSyncDataRequest {
+    repeated Data Data = 1;
+  }
+
+  message InsertSyncDataResp {
+    string message = 1;
+  }
