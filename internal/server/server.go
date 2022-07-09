@@ -52,7 +52,7 @@ func (s *secretService) Register(ctx context.Context, request *pb.RegisterReques
 
 // Login checks if given password is correct and issues authorisation token
 func (s *secretService) Login(ctx context.Context, request *pb.LoginRequest) (*pb.LoginResp, error) {
-	pass, err := s.db.SelectPass(ctx, request.User)
+	pass, id, err := s.db.SelectPass(ctx, request.User)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal, err.Error(),
@@ -66,7 +66,7 @@ func (s *secretService) Login(ctx context.Context, request *pb.LoginRequest) (*p
 	}
 
 	_, tokenString, _ := s.token.Encode(map[string]interface{}{"user_id": request.User.ID})
-	return &pb.LoginResp{Message: "Logged in successfully", Token: tokenString}, nil
+	return &pb.LoginResp{Message: "Logged in successfully", Token: tokenString, UserId: *id}, nil
 }
 
 // Insert inserts data to postgres from authorized user
@@ -81,13 +81,13 @@ func (s *secretService) Insert(ctx context.Context, request *pb.InsertRequest) (
 	s.logger.Debug("found user: ", zap.String("login", fmt.Sprint(currUser)))
 
 	request.Data.UserID = currUser
-	id, err := s.db.InsertData(ctx, request.Data)
+	id, err := s.db.InsertData(ctx, request.Data, true)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal, err.Error(),
 		)
 	}
-	return &pb.InsertResp{Id: *id}, nil
+	return &pb.InsertResp{Id: fmt.Sprint(id)}, nil
 }
 
 // GetData gets data for athorized user
@@ -130,6 +130,45 @@ func (s *secretService) Delete(ctx context.Context, request *pb.DeleteRequest) (
 		)
 	}
 	return &pb.DeleteResp{Data: data}, nil
+}
+
+func (s *secretService) GetAllDataForUser(ctx context.Context, request *pb.GetAllDataForUserRequest) (*pb.GetAllDataForUserResp, error) {
+	currUser, err := app.UserIDFromContext(ctx)
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, status.Errorf(
+			codes.Internal, err.Error(),
+		)
+	}
+	s.logger.Debug("found user: ", zap.String("login", fmt.Sprint(currUser)))
+
+	data, err := s.db.SelectAllDataForUser(ctx, currUser, request.Time, true)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal, err.Error(),
+		)
+	}
+	return &pb.GetAllDataForUserResp{Data: data}, nil
+}
+
+func (s *secretService) InsertSyncData(ctx context.Context, request *pb.InsertSyncDataRequest) (*pb.InsertSyncDataResp, error) {
+
+	currUser, err := app.UserIDFromContext(ctx)
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, status.Errorf(
+			codes.Internal, err.Error(),
+		)
+	}
+	s.logger.Debug("found user: ", zap.String("login", fmt.Sprint(currUser)))
+
+	err = s.db.InserDataForUser(ctx, request.Data, currUser)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal, err.Error(),
+		)
+	}
+	return &pb.InsertSyncDataResp{Message: "data inserted"}, nil
 }
 
 // ComparePass compares hashed passwords.

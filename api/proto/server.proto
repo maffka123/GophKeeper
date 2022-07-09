@@ -17,6 +17,10 @@ service GophKeeper {
     }
     rpc Delete(DeleteRequest) returns (DeleteResp) {
     }
+    rpc GetAllDataForUser(GetAllDataForUserRequest) returns (GetAllDataForUserResp) {
+    }
+    rpc InsertSyncData(InsertSyncDataRequest) returns (InsertSyncDataResp) {
+    }
   }
 
   message User {
@@ -54,10 +58,11 @@ service GophKeeper {
   message LoginResp {
     string Message = 1;
     string Token = 2;
+    int64 UserId = 3;
   }
 
   message InsertResp {
-    int64 Id = 1;
+    string Id = 1;
   }
 
   message GetDataResp {
@@ -66,4 +71,21 @@ service GophKeeper {
 
   message DeleteResp {
     repeated Data Data = 1;
+  }
+
+  message GetAllDataForUserRequest {
+int64 UserID = 1;
+string Time = 2;
+  }
+
+  message GetAllDataForUserResp {
+    repeated Data Data = 1;
+  }
+
+  message InsertSyncDataRequest {
+    repeated Data Data = 1;
+  }
+
+  message InsertSyncDataResp {
+    string message = 1;
   }

@@ -7,10 +7,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 
 CREATE TABLE IF NOT EXISTS secrets  (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     user_id bigint,
     data jsonb,
     metadata varchar(100),
     change_date timestamp DEFAULT current_timestamp,
+    synchronized boolean,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );

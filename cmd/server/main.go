@@ -7,6 +7,7 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	pb "github.com/maffka123/GophKeeper/api/proto"
 	"github.com/maffka123/GophKeeper/internal/app"
+	basecfg "github.com/maffka123/GophKeeper/internal/config"
 	"github.com/maffka123/GophKeeper/internal/server"
 	"github.com/maffka123/GophKeeper/internal/server/config"
 	"github.com/maffka123/GophKeeper/internal/storage"
@@ -28,7 +29,7 @@ func main() {
 		log.Fatalf("can't load config: %v", err)
 	}
 
-	logger, err := config.InitLogger(cfg.Debug, "server")
+	logger, err := basecfg.InitLogger(cfg.Debug, "server")
 	if err != nil {
 		log.Fatalf("can't initialize zap logger: %v", err)
 	}
@@ -39,7 +40,7 @@ func main() {
 
 	// initialize db
 	bp := app.GetBasePath()
-	db, err := storage.InitDB(ctx, cfg, logger, bp)
+	db, err := storage.InitDB(ctx, cfg.DBpath, logger, bp)
 	if err != nil {
 		logger.Fatal("Error initializing db", zap.Error(err))
 	}

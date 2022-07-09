@@ -27,6 +27,8 @@ type GophKeeperClient interface {
 	Insert(ctx context.Context, in *InsertRequest, opts ...grpc.CallOption) (*InsertResp, error)
 	GetData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*GetDataResp, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResp, error)
+	GetAllDataForUser(ctx context.Context, in *GetAllDataForUserRequest, opts ...grpc.CallOption) (*GetAllDataForUserResp, error)
+	InsertSyncData(ctx context.Context, in *InsertSyncDataRequest, opts ...grpc.CallOption) (*InsertSyncDataResp, error)
 }
 
 type gophKeeperClient struct {
@@ -82,6 +84,24 @@ func (c *gophKeeperClient) Delete(ctx context.Context, in *DeleteRequest, opts .
 	return out, nil
 }
 
+func (c *gophKeeperClient) GetAllDataForUser(ctx context.Context, in *GetAllDataForUserRequest, opts ...grpc.CallOption) (*GetAllDataForUserResp, error) {
+	out := new(GetAllDataForUserResp)
+	err := c.cc.Invoke(ctx, "/proto.GophKeeper/GetAllDataForUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gophKeeperClient) InsertSyncData(ctx context.Context, in *InsertSyncDataRequest, opts ...grpc.CallOption) (*InsertSyncDataResp, error) {
+	out := new(InsertSyncDataResp)
+	err := c.cc.Invoke(ctx, "/proto.GophKeeper/InsertSyncData", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GophKeeperServer is the server API for GophKeeper service.
 // All implementations must embed UnimplementedGophKeeperServer
 // for forward compatibility
@@ -91,6 +111,8 @@ type GophKeeperServer interface {
 	Insert(context.Context, *InsertRequest) (*InsertResp, error)
 	GetData(context.Context, *GetDataRequest) (*GetDataResp, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResp, error)
+	GetAllDataForUser(context.Context, *GetAllDataForUserRequest) (*GetAllDataForUserResp, error)
+	InsertSyncData(context.Context, *InsertSyncDataRequest) (*InsertSyncDataResp, error)
 	mustEmbedUnimplementedGophKeeperServer()
 }
 
@@ -112,6 +134,12 @@ func (UnimplementedGophKeeperServer) GetData(context.Context, *GetDataRequest) (
 }
 func (UnimplementedGophKeeperServer) Delete(context.Context, *DeleteRequest) (*DeleteResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedGophKeeperServer) GetAllDataForUser(context.Context, *GetAllDataForUserRequest) (*GetAllDataForUserResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAllDataForUser not implemented")
+}
+func (UnimplementedGophKeeperServer) InsertSyncData(context.Context, *InsertSyncDataRequest) (*InsertSyncDataResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InsertSyncData not implemented")
 }
 func (UnimplementedGophKeeperServer) mustEmbedUnimplementedGophKeeperServer() {}
 
@@ -216,6 +244,42 @@ func _GophKeeper_Delete_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GophKeeper_GetAllDataForUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAllDataForUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GophKeeperServer).GetAllDataForUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.GophKeeper/GetAllDataForUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GophKeeperServer).GetAllDataForUser(ctx, req.(*GetAllDataForUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GophKeeper_InsertSyncData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InsertSyncDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GophKeeperServer).InsertSyncData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.GophKeeper/InsertSyncData",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GophKeeperServer).InsertSyncData(ctx, req.(*InsertSyncDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GophKeeper_ServiceDesc is the grpc.ServiceDesc for GophKeeper service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -242,6 +306,14 @@ var GophKeeper_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _GophKeeper_Delete_Handler,
+		},
+		{
+			MethodName: "GetAllDataForUser",
+			Handler:    _GophKeeper_GetAllDataForUser_Handler,
+		},
+		{
+			MethodName: "InsertSyncData",
+			Handler:    _GophKeeper_InsertSyncData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

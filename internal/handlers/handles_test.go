@@ -12,6 +12,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/docker/distribution/uuid"
+	"github.com/go-chi/chi/v5"
+
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -28,7 +31,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-func TestHandler_HandlerPostRegister(t *testing.T) {
+func initAll() (chi.Router, *grpc.ClientConn) {
 	ctx := context.Background()
 	//init stuff
 	logger, _ := zap.NewDevelopment()
@@ -37,11 +40,24 @@ func TestHandler_HandlerPostRegister(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conn.Close()
 
+	tokenChan := make(chan string)
+	idChan := make(chan int64)
+
+	db := newFakeDB()
 	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
+	r := KeeperRouter(context.Background(), logger, client, db, tokenChan, idChan)
+	go func() {
+		<-tokenChan
+		<-idChan
+	}()
 
+	return r, conn
+}
+
+func TestHandler_HandlerPostRegister(t *testing.T) {
+	r, conn := initAll()
+	defer conn.Close()
 	type want struct {
 		statusCode int
 	}
@@ -82,18 +98,8 @@ func TestHandler_HandlerPostRegister(t *testing.T) {
 }
 
 func TestHandler_HandlerPostLogin(t *testing.T) {
-	ctx := context.Background()
-	//init stuff
-	logger, _ := zap.NewDevelopment()
-
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
-	if err != nil {
-		log.Fatal(err)
-	}
+	r, conn := initAll()
 	defer conn.Close()
-
-	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
 	type want struct {
 		statusCode int
 		cookie     http.Cookie
@@ -144,18 +150,8 @@ func TestHandler_HandlerPostLogin(t *testing.T) {
 }
 
 func TestHandler_HandlerPostData(t *testing.T) {
-	ctx := context.Background()
-	//init stuff
-	logger, _ := zap.NewDevelopment()
-
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
-	if err != nil {
-		log.Fatal(err)
-	}
+	r, conn := initAll()
 	defer conn.Close()
-
-	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
 	type want struct {
 		statusCode int
 	}
@@ -196,18 +192,8 @@ func TestHandler_HandlerPostData(t *testing.T) {
 }
 
 func TestHandler_HandlerGetOrders(t *testing.T) {
-	ctx := context.Background()
-	//init stuff
-	logger, _ := zap.NewDevelopment()
-
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
-	if err != nil {
-		log.Fatal(err)
-	}
+	r, conn := initAll()
 	defer conn.Close()
-
-	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
 	type want struct {
 		statusCode int
 	}
@@ -258,18 +244,8 @@ func TestHandler_HandlerGetOrders(t *testing.T) {
 }
 
 func TestHandler_HandlerGetDelete(t *testing.T) {
-	ctx := context.Background()
-	//init stuff
-	logger, _ := zap.NewDevelopment()
-
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
-	if err != nil {
-		log.Fatal(err)
-	}
+	r, conn := initAll()
 	defer conn.Close()
-
-	client := pb.NewGophKeeperClient(conn)
-	r := KeeperRouter(context.Background(), logger, client)
 	type want struct {
 		statusCode int
 	}
@@ -359,28 +335,28 @@ func newFakeDB() *fakeDB {
 	return &fakeDB{}
 }
 
-func (db *fakeDB) CreateNewUser(ctx context.Context, user *pb.User) (int, error) {
+func (db *fakeDB) CreateNewUser(ctx context.Context, user *pb.User) (int64, error) {
 	if user.Login == "error" {
 		return -1, fmt.Errorf("user already exists")
 	}
 	return 1, nil
 }
 
-func (db *fakeDB) SelectPass(ctx context.Context, user *pb.User) (*string, error) {
+func (db *fakeDB) SelectPass(ctx context.Context, user *pb.User) (*string, *int64, error) {
 	if user.Login == "error" {
-		return nil, fmt.Errorf("user not found")
+		return nil, nil, fmt.Errorf("user not found")
 	}
 	np := sha256.Sum256([]byte("pass"))
 	npb := hex.EncodeToString(np[:])
 	user.ID = 11
-	return &npb, nil
+	return &npb, &user.ID, nil
 }
 
 func (db *fakeDB) SelectUserForOrder(ctx context.Context, d *pb.Data) (int64, error) {
 	return db.selectUserForOrder, nil
 }
-func (db *fakeDB) InsertData(ctx context.Context, d *pb.Data) (*int64, error) {
-	i := int64(1)
+func (db *fakeDB) InsertData(ctx context.Context, d *pb.Data, synchronized bool) (*uuid.UUID, error) {
+	i := uuid.Generate()
 	return &i, nil
 }
 
@@ -390,4 +366,11 @@ func (db *fakeDB) SearchData(ctx context.Context, d *pb.Data) ([]*pb.Data, error
 
 func (db *fakeDB) DeleteData(ctx context.Context, d *pb.Data) ([]*pb.Data, error) {
 	return db.DeleteDataRes, nil
+}
+
+func (db *fakeDB) InserDataForUser(context.Context, []*pb.Data, int64) error {
+	return nil
+}
+func (db *fakeDB) SelectAllDataForUser(context.Context, int64, string, bool) ([]*pb.Data, error) {
+	return []*pb.Data{}, nil
 }

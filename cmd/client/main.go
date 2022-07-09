@@ -6,14 +6,19 @@ import (
 	"context"
 	"fmt"
 	pb "github.com/maffka123/GophKeeper/api/proto"
+	"github.com/maffka123/GophKeeper/internal/app"
 	"github.com/maffka123/GophKeeper/internal/client/config"
+	basecfg "github.com/maffka123/GophKeeper/internal/config"
 	"github.com/maffka123/GophKeeper/internal/handlers"
+	"github.com/maffka123/GophKeeper/internal/storage"
+	"github.com/maffka123/GophKeeper/internal/syncdb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 var (
@@ -30,7 +35,7 @@ func main() {
 		log.Fatalf("can't load config: %v", err)
 	}
 
-	logger, err := config.InitLogger(cfg.Debug, cfg.AppName)
+	logger, err := basecfg.InitLogger(cfg.Debug, cfg.AppName)
 	if err != nil {
 		log.Fatalf("can't initialize zap logger: %v", err)
 	}
@@ -38,6 +43,13 @@ func main() {
 	logger.Info("initializing the service...")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// initialize db
+	bp := app.GetBasePath()
+	db, err := storage.InitDB(ctx, cfg.DBpath, logger, bp)
+	if err != nil {
+		logger.Fatal("Error initializing db", zap.Error(err))
+	}
 
 	conn, err := grpc.Dial(cfg.ServerEndpoint, grpc.WithInsecure())
 	if err != nil {
@@ -48,8 +60,14 @@ func main() {
 
 	defer conn.Close()
 
+	// initialize sync
+	tokenChan := make(chan string)
+	idChan := make(chan int64)
+	syncTicker := time.NewTicker(cfg.SyncInterval)
+	go syncdb.InitSync(ctx, tokenChan, idChan, db, client, logger, syncTicker.C)
+
 	// prepare handles
-	r := handlers.KeeperRouter(ctx, logger, client)
+	r := handlers.KeeperRouter(ctx, logger, client, db, tokenChan, idChan)
 
 	// handle service stop
 	srv := &http.Server{Addr: cfg.Endpoint, Handler: r}
